@@ -15,4 +15,9 @@ class Photo extends Model
         'wine_id',
         'extension'
     ];
+
+    public function wine()
+    {
+        return $this->belongsTo(Wine::class);
+    }
 }

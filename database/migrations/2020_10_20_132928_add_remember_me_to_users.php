@@ -16,7 +16,7 @@ class AddRememberMeToUsers extends Migration
 
         Schema::table('users', function (Blueprint $table) {
 
-            $table->boolean('remember_me')->after('password');
+            $table->boolean('remember_me')->default(0)->after('password');
 
         });
 

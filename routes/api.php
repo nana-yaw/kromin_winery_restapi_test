@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\WineController;
-use \App\Models\Wine;
 
 /*
 |--------------------------------------------------------------------------
@@ -71,7 +70,7 @@ Route::group(['middleware' => ['auth:api', 'scope:admin']], function() {
 
 Route::group(['middleware' => 'auth:api'], function() {
     Route::get('wines', [WineController::class, 'index'])->name('wines.index');
-    Route::get('wines/{uuid}', [WineController::class, 'show'])->name('wines.show');
+    Route::get('wines/{wine:code}', [WineController::class, 'show'])->name('wines.show');
 });
 
 Route::group(['middleware' => 'auth:api'], function() {
