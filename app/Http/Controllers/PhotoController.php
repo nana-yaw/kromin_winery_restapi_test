@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Photo;
 use App\Utils;
+use App\Models\Wine;
+use App\Models\Photo;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Session;
+use App\Http\Resources\PhotoResource;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 
 class PhotoController extends Controller
 {
@@ -29,7 +29,7 @@ class PhotoController extends Controller
                 return response()->json($validator->errors(), 400);
             }
 
-            $response = [];
+            $album = [];
 
             foreach ($request->file('image') as $image) {
                 if ($image->isValid()) {
@@ -41,18 +41,14 @@ class PhotoController extends Controller
 
                     $url = Storage::url($name . '.' . $extension);
                     $photo = Photo::create(['name' => $name, 'url' => $url, 'wine_id' => $wine_id, 'extension' => $extension]);
-
-                    Session::flash('Uploaded', 'Photo successfully uploaded');
-                    array_push($response, $photo);
-                } else {
-                    return response()->json(['message' => 'Image is not valid'], 400);
+                    array_push($album, $photo);
                 }
+                return response()->json(['message' => 'Image invalid'], 400);
             }
 
-            return response()->json($response);
-        } else {
-            return response()->json(['message' => 'Image is not valid'], 400);
+            return response(['photo' => new PhotoResource($album), 'message' => 'Created successfully'], 201);
         }
+        return response()->json(['message' => 'Image is not found'], 404);
     }
 
     public function index(Request $request)
@@ -68,20 +64,21 @@ class PhotoController extends Controller
             ]
         );
 
+        $rule = ['required_with:wine_id', 'string', 'exists:wines,code'];
+        $wineByCode = Wine::where('code', $request->uuid)->first();
         if (isset($request->wine_id)) {
-            $db_wine_uuid = DB::table('wines')->where('id', '=', $request->wine_id)->first();
-            $rul = ['required_with:wine_id', 'string', 'exists:wines,code', Rule::in([$db_wine_uuid->code])];
-        } else {
-            $rul = ['required_with:wine_id', 'string', 'exists:wines,code'];
-            $validator->sometimes(
-                'wine_id', ['required_with:uuid'], function () {
-                    return Auth::user()->role()->role != 'admin';
-                }
-            );
+            $wine = Wine::where('id', $request->wine_id)->first();
+            $rule = ['required_with:wine_id', 'string', 'exists:wines,code', Rule::in([$wine->code])];
         }
 
         $validator->sometimes(
-            'uuid', $rul, function () {
+            'wine_id', ['required_with:uuid'], function () {
+                return Auth::user()->role()->role != 'admin';
+            }
+        );
+
+        $validator->sometimes(
+            'uuid', $rule, function () {
                 return Auth::user()->role()->role != 'admin';
             }
         );
@@ -90,11 +87,7 @@ class PhotoController extends Controller
             return response()->json($validator->errors(), 400);
         }
 
-        if ($request->limit) {
-            $limit = $request->limit;
-        } else {
-            $limit = env('limit');
-        }
+        $limit = ($request->limit) ? $request->limit : env('limit');
 
         $wine_id = $request->wine_id;
 
@@ -105,7 +98,7 @@ class PhotoController extends Controller
         $from = $request->from;
         $to = $request->to . 'T23:59:59';
 
-        $photos = Photo::query();
+        $photos = Photo::query()->with(['wine']);
 
         if ($from) {
             $photos = $photos->whereBetween('created_at', [$from, $to]);
@@ -120,16 +113,15 @@ class PhotoController extends Controller
         }
 
         if ($uuid) {
-            $db_wine_id = DB::table('wines')->where('code', '=', $uuid)->first();
-            $photos = $photos->where('wine_id', '=', $db_wine_id->id);
+            $photos = $wineByCode->photos;
             if (!$photos->first()) {
-                return response()->json(['message' => 'this wine do not have photo yet'], 400);
+                return response()->json(['message' => 'this wine do not have any photo yet'], 400);
             }
         }
 
-        $photos = $photos->paginate($limit);
+        // $photos = $photos;
 
-        return response()->json($photos);
+        return PhotoResource::collection($photos->paginate($limit));
     }
 
     public function destroy(Photo $photo)
