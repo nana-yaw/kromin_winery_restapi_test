@@ -2,16 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Photo;
-use App\Models\Wine;
-use http\Env\Response;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 use App\utils;
+use App\Models\Wine;
+use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use function PHPUnit\Framework\isEmpty;
+use Illuminate\Support\Facades\App;
+use App\Http\Resources\WineResource;
+use Illuminate\Support\Facades\Validator;
 
 class WineController extends Controller
 {
@@ -23,7 +20,6 @@ class WineController extends Controller
      */
     public function index(Request $request)
     {
-
         $validator = Validator::make(
             $request->all(), [
             'limit' => ['integer'],
@@ -39,18 +35,7 @@ class WineController extends Controller
             ]
         );
 
-        if($request->effervescence == "fermo") {
-
-            $rule = ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])];
-
-        }elseif($request->effervescence == "frizzante" || "spumante") {
-
-            $rule = ['required', 'string', Rule::in(
-                ['secco', 'abboccato', 'brut', 'dolce', 'extra-brut',
-                'dosaggio zero', 'extra-dry']
-            )];
-
-        }
+        $rule = $this->getEffervescenceValidateRule($request->effervescence);
 
         $validator->sometimes(
             'sweetness', $rule, function ($request) {
@@ -62,9 +47,7 @@ class WineController extends Controller
             return response()->json($validator->errors(), 400);
         }
 
-        if($request->limit) { $limit = $request->limit;
-        }else{ $limit = env('limit');
-        }
+        $limit = ($request->limit) ? $request->limit : env('limit');
 
         $col = $request->col;
         $sort = $request->sort;
@@ -81,7 +64,7 @@ class WineController extends Controller
         $effervescence = $request->effervescence;
         $sweetness = $request->sweetness;
 
-        $wines=  Wine::query();
+        $wines=  Wine::query()->with('photos');
 
         if($from) {
             $wines = $wines->whereBetween('created_at', [$from, $to]);
@@ -111,9 +94,9 @@ class WineController extends Controller
             $wines = $wines->where('sweetness', '=', $sweetness);
         }
 
-        $wines = $wines->paginate($limit);
+        $wines = WineResource::collection($wines->paginate($limit));
 
-        return response()->json($wines);
+        return $wines;
     }
 
 
@@ -125,7 +108,6 @@ class WineController extends Controller
 
     public function store(Request $request)
     {
-
         $validator = Validator::make(
             $request->all(), [
             'name' => ['required', 'string'],
@@ -136,18 +118,7 @@ class WineController extends Controller
             ]
         );
 
-        if($request->effervescence == "fermo") {
-
-            $rule = ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])];
-
-        }elseif($request->effervescence == "frizzante" || "spumante") {
-
-            $rule = ['required', 'string', Rule::in(
-                ['secco', 'abboccato', 'brut', 'dolce', 'extra-brut',
-                'dosaggio zero', 'extra-dry']
-            )];
-
-        }
+        $rule = $this->getEffervescenceValidateRule($request->effervescence);
 
         $validator->sometimes(
             'sweetness', $rule, function ($request) {
@@ -163,7 +134,7 @@ class WineController extends Controller
         $wine_attribute['code'] = Utils::genUuid();
         $wine = Wine::create($wine_attribute);
 
-        return response()->json($wine);
+        return response(['wine' => new WineResource($wine), 'message' => 'Created successfully'], 201);
     }
 
     /**
@@ -171,29 +142,12 @@ class WineController extends Controller
      *
      * @param \App\Models\Wine $wine
      */
-    public function show(String $uuid)
+    public function show(Wine $wine)
     {
-
-        if(!is_numeric($uuid)) {
-
-            $wine = DB::table('wines')->where('code', $uuid)->get();
-            if($wine->isNotEmpty()) {
-                return response()->json($wine);
-            }else{
-                return response()->json(['message' => 'wine not found'], 404);
-            }
-
-        }else{
-
-            $wine = DB::table('wines')->where('id', $uuid)->get();
-            if($wine->isNotEmpty()) {
-                return response()->json($wine);
-            }else{
-                return response()->json(['message' => 'wine not found'], 404);
-            }
-
+        if($wine) {
+            return response(['wine' => new WineResource($wine->loadMissing(['photos'])), 'message' => 'Retrieved successfully'], 200);
         }
-
+        return response()->json(['message' => 'Wine not found or incorrect wine code.'], 404);
     }
 
     /**
@@ -204,7 +158,6 @@ class WineController extends Controller
      */
     public function update(Request $request, Wine $wine)
     {
-
         $validator = Validator::make(
             $request->all(), [
             'name' => ['required', 'string'],
@@ -215,18 +168,7 @@ class WineController extends Controller
             ]
         );
 
-        if($request->effervescence == "fermo") {
-
-            $rule = ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])];
-
-        }elseif($request->effervescence == "frizzante" || "spumante") {
-
-            $rule = ['required', 'string', Rule::in(
-                ['secco', 'abboccato', 'brut', 'dolce', 'extra-brut',
-                'dosaggio zero', 'extra-dry']
-            )];
-
-        }
+        $rule = $this->getEffervescenceValidateRule($request->effervescence);
 
         $validator->sometimes(
             'sweetness', $rule, function ($request) {
@@ -241,7 +183,7 @@ class WineController extends Controller
         $wine_attribute['code'] = $wine['code'];
         $wine-> update($wine_attribute);
 
-        return response()->json($wine);
+        return response(['wine' => new WineResource($wine), 'message' => 'Update successfully'], 200);
     }
 
     /**
@@ -255,6 +197,11 @@ class WineController extends Controller
         $wine->delete();
 
         return response()->json(['message' => 'Wine successfully deleted'], 204);
+    }
+
+    private function getEffervescenceValidateRule($effervescence) {
+        $validateRule = ($effervescence == "fermo") ? ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])] : ['secco', 'abboccato', 'brut', 'dolce', 'extra-brut', 'dosaggio zero', 'extra-dry'];
+        return $validateRule;
     }
 
 
