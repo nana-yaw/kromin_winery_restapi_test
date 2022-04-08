@@ -200,7 +200,10 @@ class WineController extends Controller
     }
 
     private function getEffervescenceValidateRule($effervescence) {
-        $validateRule = ($effervescence == "fermo") ? ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])] : ['secco', 'abboccato', 'brut', 'dolce', 'extra-brut', 'dosaggio zero', 'extra-dry'];
+        $validateRule = ($effervescence == "fermo") ?
+                ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])]
+                :
+                ['required', 'string', Rule::in(['secco', 'abboccato', 'brut', 'dolce', 'extra-brut', 'dosaggio zero', 'extra-dry'])];
         return $validateRule;
     }
 
