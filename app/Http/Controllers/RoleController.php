@@ -25,18 +25,16 @@ class RoleController extends Controller
             DB::table('oauth_access_tokens')->where('user_id', $user_id)->update(['revoked' => 1]);
 
             return response()->json(['message' => "User's role successfully changed"]);
-        }else{
-            return response()->json(['message' => "Invalid input"], 400);
         }
+        return response()->json(['message' => "Invalid input"], 400);
     }
 
     public function getRole(String $user_id){
 
         if($role = Role::where('user_id', '=', $user_id)->first()){
             return response()->json($role);
-        }else{
-            return response()->json(['message' => "Invalid input"], 400);
         }
+        return response()->json(['message' => "Invalid input"], 400);
 
     }
 }

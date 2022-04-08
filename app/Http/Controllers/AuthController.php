@@ -149,15 +149,14 @@ class AuthController extends Controller
     }
 
     public function destroyUser(User $user){
-
-        if(Auth::id()==$user['id']) {
-            DB::table('oauth_access_tokens')->where('user_id', '=', $user['id'])->update(['revoked' => 1]);
-            DB::table('roles')->where('user_id', '=', $user['id'])->delete();
+        $isUser = Auth::id()==$user['id'];
+        if($isUser) {
+            $user->token->revoke();
+            $user->role()->delete();
             $user->delete();
             return response()->json(['message' => 'User successfully deleted'], 204);
-        }else{
-            return response()->json(['message' => 'You can delete only your profile'], 400);
         }
+        return response()->json(['message' => 'You can delete only your profile'], 400);
     }
 
 }
