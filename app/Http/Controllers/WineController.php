@@ -199,8 +199,12 @@ class WineController extends Controller
         return response()->json(['message' => 'Wine successfully deleted'], 204);
     }
 
-    private function getEffervescenceValidateRule($effervescence) {
-        $validateRule = ($effervescence == "fermo") ? ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])] : ['secco', 'abboccato', 'brut', 'dolce', 'extra-brut', 'dosaggio zero', 'extra-dry'];
+    private function getEffervescenceValidateRule($effervescence)
+    {
+        $validateRule = ($effervescence == "fermo") ?
+                ['required', 'string', Rule::in(['secco', 'abboccato', 'amabile', 'dolce'])]
+                :
+                ['required', 'string', Rule::in(['secco', 'abboccato', 'brut', 'dolce', 'extra-brut', 'dosaggio zero', 'extra-dry'])];
         return $validateRule;
     }
 
